@@ -1,4 +1,11 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+import io
 import os
+import sys
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+import tensorflow as tf
 import numpy as np 
 from validation import compute_f1
 from keras.models import Model
@@ -14,28 +21,30 @@ from ModelPackage import ModelPackage
 from sklearn.model_selection import KFold
 
 
-epochs = 5
-samplingMethod = "entropySampling"
+epochs = 10
+samplingMethod = sys.argv[2] #"entropySampling"]
 modelName = "LSTM_word_char"
-dataset = "Cadec"
+datasetName = sys.argv[1] #"Cadec"
 
-if dataset == "Twitter":
+print(datasetName + " " +  samplingMethod)
+
+
+
+if datasetName == "Twitter":
     trainSentences = readfileTwitter("twitter/TwitterTrainBIO.tsv")
     learnSentences = trainSentences[int(len(trainSentences)/5):]
     trainSentences = trainSentences[:int(len(trainSentences)/5)]
     testSentences = readfile("twitter/TwitterTestBIO.tsv")
 
-elif dataset == "Medline":
+elif datasetName == "Medline":
     trainSentences = readfileTwitter("twitter/MedlineBIO.tsv")
     learnSentences = []
     testSentences = []
 
-elif dataset == "Cadec":
+elif datasetName == "Cadec":
     trainSentences = readfileTwitter("twitter/CadecBIO.tsv")
-    l = len(trainSentences)
-    learnSentences = trainSentences[int(2*l/10):int(9*l/10)]
-    testSentences = trainSentences[int(9*l/10):]
-    trainSentences = trainSentences[:int(2*l/10)]
+    learnSentences = []
+    testSentences = []
 
 
 
@@ -71,7 +80,7 @@ caseEmbeddings = np.identity(len(case2Idx), dtype='float32')
 word2Idx = {}
 wordEmbeddings = []
 
-fEmbeddings = open("embeddings/glove.6B.100d.txt", encoding="utf-8")
+fEmbeddings = io.open("embeddings/glove.6B.100d.txt", encoding="utf-8")
 
 for line in fEmbeddings:
     split = line.strip().split(" ")
@@ -110,7 +119,7 @@ train_batch,train_batch_len = createBatches(train_set)
 learn_batch,learn_batch_len = createBatches(learn_set)
 test_batch,test_batch_len = createBatches(test_set)
 
-modelPackage = ModelPackage(wordEmbeddings, caseEmbeddings, word2Idx, label2Idx, char2Idx, modelName, dataset)
+modelPackage = ModelPackage(wordEmbeddings, caseEmbeddings, word2Idx, label2Idx, char2Idx, modelName, datasetName)
 
 print(modelPackage.modelName)
 
@@ -118,8 +127,12 @@ model = createModel(modelPackage)
 modelPackage.model = model
 # plot_model(model, to_file='model.png')
 
+precision = 0
+recoil = 0
+f1 = 0
+file = open("Results/"+str(datasetName)+str(samplingMethod) + str(modelName)+ "_Results.txt", "w+")
 
-if dataset == "Twitter":
+if datasetName == "Twitter":
     #Training The Model
     model = train(model, train_batch, epochs, modelPackage)
 
@@ -131,10 +144,26 @@ if dataset == "Twitter":
         active_data, flagged = active_learn(model, learn_batch, flagged, samplingMethod, modelPackage)
         train_batch = train_batch + active_data
         model = train(model, train_batch, epochs, modelPackage)
-        test(model, test_batch, idx2Label,modelPackage)
+        pre_test, rec_test, f1_test = test(model, test_batch, idx2Label,modelPackage)
+        precision = precision + pre_test
+        recoil = recoil + rec_test
+        f1 = f1 + f1_test
+        file.write("Iteration : " + str(i)+"\n")
+        file.write("Precision: " + str(pre_test) + " Recoil : "+str(rec_test) + " F1_Score : " + str(f1_test)+"\n\n")
+    
+    file.write("Avg Precision: " + str(precision/10) + " Avg Recoil : "+str(recoil/10) + " Avg F1_Score : " + str(f1/10)+"\n\n\n")
+    model = train(model, train_batch, epochs, modelPackage)
+    pre_test, rec_test, f1_test = test(model, test_batch, idx2Label,modelPackage)
+    file.write("Final Precision: " + str(pre_test) + " Final Recoil : "+str(rec_test) + " Final F1_Score : " + str(f1_test)+"\n\n\n")
+    
+
+
 else:
     kf = KFold(10)
     for train_index, test_index in kf.split(train_batch):
+        precision = 0
+        recoil = 0
+        f1 = 0
         model = createModel(modelPackage)
         train_data = [train_batch[i] for i in train_index]
         test_data = [train_batch[i] for i in test_index]
@@ -150,19 +179,20 @@ else:
             active_data, flagged = active_learn(model, learn_data, flagged, samplingMethod, modelPackage)
             train_data = train_data + active_data
             model = train(model, train_data, epochs, modelPackage)
-            test(model, test_data, idx2Label,modelPackage)
+            pre_test, rec_test, f1_test = test(model, test_data, idx2Label,modelPackage)
+            precision = precision + pre_test
+            recoil = recoil + rec_test
+            f1 = f1 + f1_test
+            file.write("Iteration : " + str(i)+"\n")
+            file.write("Precision: " + str(pre_test) + " Recoil : "+str(rec_test) + " F1_Score : " + str(f1_test)+"\n")
+        file.write("Avg Precision: " + str(precision/10) + " Avg Recoil : "+str(recoil/10) + " Avg F1_Score : " + str(f1/10)+"\n")
+        
+        model = train(model, train_data, epochs, modelPackage)
+        pre_test, rec_test, f1_test = test(model, test_data, idx2Label,modelPackage)
+        file.write("Final Precision: " + str(pre_test) + " Final Recoil : "+str(rec_test) + " Final F1_Score : " + str(f1_test)+"\n\n\n")
+        
+
+
 
     
-
-
-# Saving Model 
-model_json = model.to_json()
-with open("model.json", "w") as json_file:
-    json_file.write(model_json)
-
-# #   Performance on learn dataset 
-# predLabels, correctLabels = tag_dataset(learn_batch, model)        
-# pre_learn, rec_learn, f1_learn = compute_f1(predLabels, correctLabels, idx2Label)
-# print("learn-Data: Prec: %.3f, Rec: %.3f, F1: %.3f" % (pre_learn, rec_learn, f1_learn))
-    
-#   Performance on test dataset       
+# save_model(model)

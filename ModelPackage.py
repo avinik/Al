@@ -1,6 +1,6 @@
-class ModelPackage():
+class ModelPackage(object):
     def __init__(self, wordEmbeddings, caseEmbeddings, word2Idx, label2Idx, char2Idx, modelName, dataset, epochs=50):
-        super(ModelPackage, self).__init__()
+        super(ModelPackage,  self).__init__()
         self.epochs = epochs
         self.wordEmbeddings = wordEmbeddings
         self.caseEmbeddings = caseEmbeddings
@@ -10,6 +10,7 @@ class ModelPackage():
         self.modelName = modelName
         self.dataset = dataset
         self.model = None
+        
     
     def setModel(self, model):
         self.model = model

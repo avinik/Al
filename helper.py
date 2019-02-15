@@ -3,6 +3,7 @@ import numpy as np
 from keras.utils import Progbar
 from prepro import iterate_minibatches, createBatches
 from validation import compute_f1
+import tensorflow as tf
 
 
 def save_model(model):
@@ -57,9 +58,11 @@ def train(model, train_set, epochs, package):
         for i,batch in enumerate(iterate_minibatches(train_batch,train_batch_len)):
             labels, tokens, casing, char = batch
             if package.modelName == "LSTM_word":  
-                model.fit([tokens], labels, verbose=0)
+                with tf.device('/gpu:0'):
+                    model.fit([tokens], labels, verbose=0)
             elif package.modelName == "LSTM_word_char":
-                model.fit([tokens, casing, char], labels, verbose=0)
+                with tf.device('/gpu:0'):
+                    model.fit([tokens, casing, char], labels, verbose=0)
             a.update(i)
         print(' ')
     return model
@@ -70,3 +73,4 @@ def test(model, test_set, idx2Label, package):
     predLabels, correctLabels = tag_dataset(test_batch, model, package)        
     pre_test, rec_test, f1_test= compute_f1(predLabels, correctLabels, idx2Label)
     print("Test-Data: Prec: %.3f, Rec: %.3f, F1: %.3f" % (pre_test, rec_test, f1_test))
+    return pre_test, rec_test, f1_test
