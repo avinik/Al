@@ -13,18 +13,22 @@ class DeepFool(object):
         self.no_of_tags = len(modelPackage.label2Idx)
         last_dense = self.model.layers[-2].output
         shape = self.model.get_input_shape_at(0)
+        shape = shape[1:]
         print(shape)
-        n_channels, img_nrows, img_ncols = shape[1:]
+        #n_channels, img_nrows, img_ncols = shape[1:]
         self.nb_class = self.model.get_output_shape_at(0)[-1]
+        print(self.nb_class)
         last_dense = self.model.layers[-2].output
         second_model = Model(self.model.input, last_dense)
         # second_model.summary()
 
 
 
-        adversarial_image = K.placeholder((1, n_channels, img_nrows, img_ncols))
-        adverserial_target = K.placeholder((1, nb_class))
-        adv_noise = K.placeholder((1, n_channels, img_nrows, img_ncols))
+        #adversarial_image = K.placeholder((1, n_channels, img_nrows, img_ncols))
+        adversarial_image = K.placeholder(1, shape)
+        adverserial_target = K.placeholder((1, self.nb_class))
+        #adv_noise = K.placeholder((1, n_channels, img_nrows, img_ncols))
+        print(adversarial_image)
 
         self.adversarial_image = adversarial_image
         self.adverserial_target = adverserial_target
